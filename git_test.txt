@@ -5,3 +5,4 @@ v 1.03
 v 1.04 by anrovla
 v 1.05 by anrovla10
 v 1.06 by anrovla10
+v 1.07 by anrovla10
