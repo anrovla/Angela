@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Find similarity songs, multiple seletcs</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+  .ui-autocomplete-loading {
+    background: white url("images/ui-anim_basic_16x16.gif") right center no-repeat;
+  }
+  </style>
+
+
+
+  <script>
+  $(function() {
+    // declare some variables 
+    // summary object that holds all objects return upon song select
+    var summ_obj = [] ;
+    var no_of_selections = 1;
+
+    function precise_round(num, decimals) {
+      var t=Math.pow(10, decimals);   
+      return (Math.round((num * t) + (decimals>0?1:0)*(Math.sign(num) * (10 / Math.pow(100, decimals)))) / t).toFixed(decimals);
+    }
+
+    //returns true if o is in so
+    function check_obj(so, o) {
+        for (var i = 0; i < so.length; i++)
+        {
+            if ((so[i].song_ID_orig == o[0].song_ID_orig))
+            {
+                // does exist
+                return true;
+            }
+        }       
+        return false;
+    }
+
+    // check for duplicate names, if any aggregate them by avg
+    function remove_duplicate_name(dn) {
+      var od = [];
+      for (i = 0; i < dn.length; i++) { 
+       var avg_sim = 0;
+       var avg_sim_count = 0;
+       for (k = 0; k < dn.length; k++) {
+        if (dn[k].name == dn[i].name && dn[k].similarity != dn[i].similarity) {
+          avg_sim_count++;
+          avg_sim = avg_sim + dn[k].similarity;
+        };
+       }
+       if (jQuery.inArray(dn[i].name,od) == -1 ) {
+         od.push({"song_ID_orig":"","name":"","artist":"","similarity":0});
+         od[i].song_ID_orig = dn[i].song_ID_orig;
+         od[i].name = dn[i].name;
+         od[i].artist = dn[i].artist;
+         if (avg_sim_count == 0) {
+          od[i].similarity = dn[i].similarity;
+         } else {
+          od[i].similarity = avg_sim/avg_sim_count;
+         };
+       };
+       
+      }
+      return od;
+    }
+
+    function split( val ) {
+      return val.split( /,\s*/ );
+    }
+
+    function extractLast( term ) {
+      return split( term ).pop();
+    }
+
+    // sort array function
+    function dynamicSort(property) {
+        var sortOrder = 1;
+        if(property[0] === "-") {
+            sortOrder = -1;
+            property = property.substr(1);
+        }
+        return function (a,b) {
+            var result = (a[property] < b[property]) ? 1 : (a[property] > b[property]) ? -1 : 0;
+            return result * sortOrder;
+        }
+    }
+
+    // write message to id div element
+    //
+    function log( message, id, action ) {
+      if (action === "prepend") {
+        //$( "<div>" ).html( message ).prependTo( id );
+        $( "<div>" ).html( message ).appendTo( id );
+        $( id ).scrollTop( 0 );
+      };
+      if (action === "clear") {
+        $( id ).empty();
+      }; 
+    }
+
+    // autocomplete for div song, using first webservice http://localhost:8888/Angela/search.php?term=
+    // arg = part of song name
+    // returns list of song names that contains part of song names
+    //
+    // upon select triger second webservice http://localhost:8888/Angela/search_msimilarity.php?term=
+    // arg = song id
+    // returns tupules of song id, song name, artist, similarity order by similarity desc
+    //
+    $( "#song" )
+    // don't navigate away from the field on tab when selecting an item
+      .bind( "keydown", function( event ) {
+        if ( event.keyCode === $.ui.keyCode.TAB &&
+            $( this ).autocomplete( "instance" ).menu.active ) {
+          event.preventDefault();
+        }
+      })
+    // autocomplete method
+    .autocomplete({
+      source: "search.php",
+      minLength: 2,
+      focus: function() {
+        // prevent value inserted on focus
+        return false;
+      },
+      select: function( event, ui ) {
+        // no more selection, reload whole page
+        if (no_of_selections > 5) {
+          alert("Max of 5 selection reached, reloading the page");
+          location.reload();
+          return true;
+        } else{
+          // insert selected song in div selected
+          log(no_of_selections + ": " + ui.item.label,"#selected","prepend");
+          // http_get upon select from list
+          $.get("http://localhost:8888/Angela/search_msimilarity.php", 
+                {
+                  term: encodeURIComponent(ui.item.id)
+                },              
+                function(data, status){
+                  var obj = jQuery.parseJSON(data);
+                  // add this obj from select to summary obj, only if it is not already there!
+                  if (!check_obj(summ_obj, obj)){
+                    summ_obj = summ_obj.concat(obj); 
+                  }
+                               
+                  // clear div element log
+                  log("","#log", "clear")
+
+                  // remove dumplicate name and recalculate similarity
+                  r_summ_obj = remove_duplicate_name(summ_obj);
+
+                  // sort array by similarity
+                  sort_r_summ_obj = r_summ_obj.sort(dynamicSort("similarity"))                  
+
+                  // top 15 similaritues to be displayed
+                  var displayed = summ_obj.length;
+                  if (displayed > 20) {
+                    displayed = 20
+                  };
+
+                  // construct and display lines off song similarities 
+                  for (i = 0; i < displayed; i++) { 
+                       log("song " + (i+1) + ": <b>" + sort_r_summ_obj[i].name+"</b>, artist: <i>"+ sort_r_summ_obj[i].artist + "</i>, similarity: "+precise_round(sort_r_summ_obj[i].similarity,2), "#log", "prepend");
+                  }
+                });
+          // next select up to max. 5 selections
+          no_of_selections++;
+          var terms = split( this.value );
+          // remove the current input
+          terms.pop();
+          this.value = terms.join( ", " );          
+          return false;  
+        };
+
+      }
+    });
+  });
+  </script>
+
+
+</head>
+<body>
+ 
+<h1>
+Find similar songs to listen!
+</h1>
+
+<div class="ui-widget">
+  <label for="birds">Select song(s) name: </label>
+  <input id="song" style="width: 600px;">
+</div>
+ 
+<div class="ui-widget" style="margin-top:2em; font-family:Arial">
+  Selected songs (up to 5):
+  <div id="selected" style="height: 100px; width: 800px; overflow: auto;" class="ui-widget-content"></div>
+</div>
+ 
+ <div class="ui-widget" style="margin-top:2em; font-family:Arial">
+  Top 15 similarity songs from selected songs:
+  <div id="log" style="height: 250px; width: 800px; overflow: auto;" class="ui-widget-content"></div>
+</div>
+ 
+</body>
+</html>

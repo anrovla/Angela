@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>jQuery UI Autocomplete - Remote datasource</title>
+  <link rel="stylesheet" href="//code.jquery.com/ui/1.11.4/themes/smoothness/jquery-ui.css">
+  <script src="//code.jquery.com/jquery-1.10.2.js"></script>
+  <script src="//code.jquery.com/ui/1.11.4/jquery-ui.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <style>
+  .ui-autocomplete-loading {
+    background: white url("images/ui-anim_basic_16x16.gif") right center no-repeat;
+  }
+  </style>
+
+
+
+  <script>
+  $(function() {
+    function log( message, clear ) {
+      if (clear === "true") {
+        $( "#log" ).empty();
+      } else {
+        $( "<div>" ).html( message ).prependTo( "#log" );
+        $( "#log" ).scrollTop( 0 );
+      };
+    }
+ 
+    $( "#song" ).autocomplete({
+      source: "search.php",
+      minLength: 2,
+      select: function( event, ui ) {
+        $.get("http://localhost:8888/Angela/search_similarity.php", 
+              {
+                term: encodeURIComponent(ui.item.id)
+              },              
+              function(data, status){
+                var obj = jQuery.parseJSON(data);
+                log("","true")
+                for (i = 0; i < obj.length; i++) { 
+                     log("song: <b>" + obj[i].name+"</b>,      artist: <i>"+ obj[i].artist + "</i>","faalse");
+                }
+              });
+      }
+    });
+  });
+  </script>
+
+
+</head>
+<body>
+ 
+<h1>
+Find similar songs to listen!
+</h1>
+
+<div class="ui-widget">
+  <label for="birds">Input song name: </label>
+  <input id="song" style="width: 630px;">
+</div>
+ 
+<div class="ui-widget" style="margin-top:2em; font-family:Arial">
+  Top 10 similarity songs:
+  <div id="log" style="height: 300px; width: 800px; overflow: auto;" class="ui-widget-content"></div>
+</div>
+ 
+ 
+</body>
+</html>
